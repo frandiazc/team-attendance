@@ -240,16 +240,6 @@ function LoginPage() {
                         </form>
                     </CardContent>
                 </Card>
-
-                {/* Demo credentials hint */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.5 }}
-                    className="mt-4 text-center text-sm text-muted-foreground"
-                >
-                    <p>Demo Admin: admin@team.com / admin123</p>
-                </motion.div>
             </motion.div>
         </div>
     );
