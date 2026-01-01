@@ -12,8 +12,8 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the frontend (use npx to ensure binaries are found)
-RUN npx tsc -b && npx vite build
+# Build the frontend using npm scripts (ensures PATH includes node_modules/.bin)
+RUN npm run build
 
 # Production stage
 FROM node:20-alpine AS production
@@ -26,8 +26,11 @@ RUN apk add --no-cache python3 make g++
 # Copy package files
 COPY package*.json ./
 
-# Install only production dependencies
-RUN npm ci --only=production
+# Install production dependencies
+RUN npm ci --omit=dev
+
+# Install tsx for running TypeScript
+RUN npm install tsx
 
 # Rebuild better-sqlite3 for Alpine Linux
 RUN npm rebuild better-sqlite3
@@ -53,4 +56,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
 # Start the production server
-CMD ["node", "--experimental-specifier-resolution=node", "--loader", "tsx", "src/server/production.ts"]
+CMD ["npx", "tsx", "src/server/production.ts"]
