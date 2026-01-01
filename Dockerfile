@@ -12,8 +12,8 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the frontend
-RUN npm run build
+# Build the frontend (use npx to ensure binaries are found)
+RUN npx tsc -b && npx vite build
 
 # Production stage
 FROM node:20-alpine AS production
