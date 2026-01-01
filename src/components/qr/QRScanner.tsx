@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { playSuccessSound, playErrorSound } from '@/lib/audio';
 
 interface QRScannerProps {
-    onScan: (token: string) => Promise<{ success: boolean; player_name?: string; error?: string }>;
+    onScan: (token: string) => Promise<{ success: boolean; player_name?: string; error?: string; is_duplicate?: boolean }>;
 }
 
 export function QRScanner({ onScan }: QRScannerProps) {
@@ -15,6 +15,7 @@ export function QRScanner({ onScan }: QRScannerProps) {
         success: boolean;
         player_name?: string;
         error?: string;
+        is_duplicate?: boolean;
     } | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
@@ -123,7 +124,10 @@ export function QRScanner({ onScan }: QRScannerProps) {
                     'relative w-full aspect-square rounded-2xl overflow-hidden',
                     'bg-black/90',
                     'border-2',
-                    lastResult?.success ? 'border-green-500' : lastResult?.error ? 'border-red-500' : 'border-primary/50'
+                    'border-2',
+                    lastResult?.success
+                        ? (lastResult.is_duplicate ? 'border-yellow-500' : 'border-green-500')
+                        : lastResult?.error ? 'border-red-500' : 'border-primary/50'
                 )}
             >
                 {/* Camera view */}
@@ -208,7 +212,9 @@ export function QRScanner({ onScan }: QRScannerProps) {
                             exit={{ opacity: 0 }}
                             className={cn(
                                 'absolute inset-0 flex flex-col items-center justify-center',
-                                lastResult.success ? 'bg-green-500/90' : 'bg-red-500/90'
+                                lastResult.success
+                                    ? (lastResult.is_duplicate ? 'bg-yellow-500/90' : 'bg-green-500/90')
+                                    : 'bg-red-500/90'
                             )}
                         >
                             <motion.div
@@ -241,7 +247,7 @@ export function QRScanner({ onScan }: QRScannerProps) {
                                     transition={{ delay: 0.4 }}
                                     className="text-white/80 mt-2"
                                 >
-                                    ¡Asistencia registrada!
+                                    {lastResult.is_duplicate ? '¡Ya te veooooo!' : '¡Asistencia registrada!'}
                                 </motion.p>
                             )}
                         </motion.div>

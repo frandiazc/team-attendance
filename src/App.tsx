@@ -856,7 +856,7 @@ function AdminDashboard() {
                             </svg>
                         </div>
                         <div>
-                            <p className="font-semibold text-foreground">Team Attendance</p>
+                            <p className="font-semibold text-foreground">Control Equipo</p>
                             <p className="text-xs text-muted-foreground">Panel de Admin</p>
                         </div>
                     </div>

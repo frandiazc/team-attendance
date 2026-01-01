@@ -24,7 +24,11 @@ router.post('/validate', (req, res) => {
         }
 
         if (qrCode.is_used) {
-            return res.status(400).json({ success: false, error: 'Código QR ya utilizado', player_name: qrCode.player_name });
+            return res.json({
+                success: true,
+                player_name: qrCode.player_name,
+                is_duplicate: true
+            });
         }
 
         // Get today's event (or create one)
