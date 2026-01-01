@@ -316,6 +316,177 @@ function PlayerDashboard() {
     );
 }
 
+// Settings Tab Component
+function SettingsTab() {
+    const { user, token, logout } = useAuth();
+    const [name, setName] = useState(user?.name || '');
+    const [email, setEmail] = useState(user?.email || '');
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setMessage(null);
+
+        if (newPassword && newPassword !== confirmPassword) {
+            setMessage({ type: 'error', text: 'Las contraseñas no coinciden' });
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const res = await fetch('/api/auth/profile', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    name: name !== user?.name ? name : undefined,
+                    email: email !== user?.email ? email : undefined,
+                    currentPassword: newPassword ? currentPassword : undefined,
+                    newPassword: newPassword || undefined
+                })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Error al actualizar');
+            }
+
+            // Update token in localStorage
+            if (data.token) {
+                localStorage.setItem('token', data.token);
+            }
+
+            setMessage({ type: 'success', text: 'Perfil actualizado correctamente' });
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmPassword('');
+
+            // Reload page to refresh user data
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (err: any) {
+            setMessage({ type: 'error', text: err.message });
+        }
+        setLoading(false);
+    };
+
+    return (
+        <motion.div
+            key="settings"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="space-y-6"
+        >
+            <h2 className="text-xl font-bold">Ajustes de Perfil</h2>
+
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Editar Perfil</CardTitle>
+                    <CardDescription>Cambia tu nombre, email o contraseña</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <Label htmlFor="settingsName">Nombre</Label>
+                            <Input
+                                id="settingsName"
+                                value={name}
+                                onChange={e => setName(e.target.value)}
+                                className="mt-1.5"
+                            />
+                        </div>
+
+                        <div>
+                            <Label htmlFor="settingsEmail">Email</Label>
+                            <Input
+                                id="settingsEmail"
+                                type="email"
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                                className="mt-1.5"
+                            />
+                        </div>
+
+                        <div className="border-t border-border pt-4 mt-4">
+                            <p className="text-sm text-muted-foreground mb-3">Cambiar contraseña (opcional)</p>
+
+                            <div className="space-y-3">
+                                <div>
+                                    <Label htmlFor="currentPassword">Contraseña actual</Label>
+                                    <Input
+                                        id="currentPassword"
+                                        type="password"
+                                        value={currentPassword}
+                                        onChange={e => setCurrentPassword(e.target.value)}
+                                        placeholder="Requerida para cambiar contraseña"
+                                        className="mt-1.5"
+                                    />
+                                </div>
+
+                                <div>
+                                    <Label htmlFor="newPassword">Nueva contraseña</Label>
+                                    <Input
+                                        id="newPassword"
+                                        type="password"
+                                        value={newPassword}
+                                        onChange={e => setNewPassword(e.target.value)}
+                                        placeholder="Dejar vacío para no cambiar"
+                                        className="mt-1.5"
+                                    />
+                                </div>
+
+                                <div>
+                                    <Label htmlFor="confirmPassword">Confirmar nueva contraseña</Label>
+                                    <Input
+                                        id="confirmPassword"
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={e => setConfirmPassword(e.target.value)}
+                                        placeholder="Repetir nueva contraseña"
+                                        className="mt-1.5"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {message && (
+                            <motion.p
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className={cn(
+                                    'text-sm p-3 rounded-lg',
+                                    message.type === 'success' ? 'bg-green-500/10 text-green-600' : 'bg-destructive/10 text-destructive'
+                                )}
+                            >
+                                {message.text}
+                            </motion.p>
+                        )}
+
+                        <Button type="submit" className="w-full" disabled={loading}>
+                            {loading ? 'Guardando...' : 'Guardar Cambios'}
+                        </Button>
+                    </form>
+                </CardContent>
+            </Card>
+
+            <Card className="border-destructive/50">
+                <CardContent className="pt-6">
+                    <Button variant="destructive" className="w-full" onClick={logout}>
+                        Cerrar Sesión
+                    </Button>
+                </CardContent>
+            </Card>
+        </motion.div>
+    );
+}
+
 // Admin Dashboard
 function AdminDashboard() {
     const { user, logout } = useAuth();
@@ -453,6 +624,19 @@ function AdminDashboard() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                         </svg>
                         <span className="text-xs font-medium">Jugadores</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('settings')}
+                        className={cn(
+                            'flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all',
+                            activeTab === 'settings' ? 'text-primary' : 'text-muted-foreground'
+                        )}
+                    >
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-xs font-medium">Ajustes</span>
                     </button>
                 </div>
             </nav>
@@ -611,6 +795,10 @@ function AdminDashboard() {
                                 ))}
                             </div>
                         </motion.div>
+                    )}
+
+                    {activeTab === 'settings' && (
+                        <SettingsTab />
                     )}
                 </AnimatePresence>
             </main>

@@ -122,5 +122,80 @@ router.get('/me', (req, res) => {
         res.status(401).json({ error: 'Token inválido' });
     }
 });
+// Update user profile
+router.put('/profile', (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Token no proporcionado' });
+        }
+
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+
+        const { name, email, currentPassword, newPassword } = req.body;
+
+        // Get current user
+        const user = db.prepare('SELECT * FROM users WHERE id = ?').get(decoded.id) as any;
+        if (!user) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        // If changing password, verify current password
+        if (newPassword) {
+            if (!currentPassword) {
+                return res.status(400).json({ error: 'Contraseña actual requerida' });
+            }
+            if (!verifyHash(currentPassword, user.password_hash)) {
+                return res.status(400).json({ error: 'Contraseña actual incorrecta' });
+            }
+        }
+
+        // Check if new email is already taken by another user
+        if (email && email !== user.email) {
+            const existing = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, user.id);
+            if (existing) {
+                return res.status(400).json({ error: 'El email ya está en uso' });
+            }
+        }
+
+        // Build update query
+        const updates: string[] = [];
+        const params: any[] = [];
+
+        if (name) {
+            updates.push('name = ?');
+            params.push(name);
+        }
+        if (email) {
+            updates.push('email = ?');
+            params.push(email);
+        }
+        if (newPassword) {
+            updates.push('password_hash = ?');
+            params.push(simpleHash(newPassword));
+        }
+
+        if (updates.length > 0) {
+            params.push(user.id);
+            db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+        }
+
+        // Get updated user
+        const updatedUser = db.prepare('SELECT id, name, email, role, team_id FROM users WHERE id = ?').get(user.id);
+
+        // Generate new token with updated info
+        const newToken = jwt.sign(
+            { id: (updatedUser as any).id, email: (updatedUser as any).email, role: (updatedUser as any).role, team_id: (updatedUser as any).team_id },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        res.json({ user: updatedUser, token: newToken });
+    } catch (error) {
+        console.error('Update profile error:', error);
+        res.status(500).json({ error: 'Error al actualizar perfil' });
+    }
+});
 
 export default router;
