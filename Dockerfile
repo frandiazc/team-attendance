@@ -3,17 +3,20 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Add node_modules/.bin to PATH
+ENV PATH /app/node_modules/.bin:$PATH
+
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies (including devDependencies for build)
+# Install all dependencies
 RUN npm ci
 
 # Copy source code
 COPY . .
 
-# Build the frontend using npm scripts (ensures PATH includes node_modules/.bin)
-RUN npm run build
+# Build the frontend
+RUN tsc -b && vite build
 
 # Production stage
 FROM node:20-alpine AS production
