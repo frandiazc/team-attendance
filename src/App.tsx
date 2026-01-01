@@ -11,6 +11,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './com
 
 import { Avatar, AvatarFallback } from './components/ui/avatar';
 import { cn } from './lib/utils';
+import { MoreVertical, Edit, Trash2, BarChart, KeyRound, Calendar as CalendarIcon } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from './components/ui/dropdown-menu';
 import './index.css';
 
 const queryClient = new QueryClient();
@@ -316,6 +319,148 @@ function PlayerDashboard() {
     );
 }
 
+// Player Stats Dialog
+function PlayerStatsDialog({ player, open, onOpenChange }: { player: any, open: boolean, onOpenChange: (open: boolean) => void }) {
+    const { token } = useAuth();
+    const { data: stats, isLoading } = useQuery({
+        queryKey: ['playerStats', player?.id],
+        queryFn: async () => {
+            if (!player?.id) return null;
+            const res = await fetch(`/api/players/${player.id}/stats`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to fetch stats');
+            return res.json();
+        },
+        enabled: !!player?.id && open
+    });
+
+    if (!player) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Estadísticas de {player.name}</DialogTitle>
+                </DialogHeader>
+
+                {isLoading ? (
+                    <div className="py-8 text-center text-muted-foreground">Cargando estadísticas...</div>
+                ) : stats ? (
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-muted/50 p-4 rounded-lg text-center">
+                                <span className="text-3xl font-bold block text-primary">{stats.stats.attendancePercentage}%</span>
+                                <span className="text-sm text-muted-foreground">Asistencia Total</span>
+                            </div>
+                            <div className="bg-muted/50 p-4 rounded-lg text-center">
+                                <span className="text-3xl font-bold block">{stats.stats.attendedEvents}</span>
+                                <span className="text-sm text-muted-foreground">Eventos Asistidos</span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <h4 className="text-sm font-medium text-muted-foreground">Desglose</h4>
+                            <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span>Partidos</span>
+                                <span className="font-medium">{stats.stats.matches.attended} / {stats.stats.matches.total}</span>
+                            </div>
+                            <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500"></span>Entrenamientos</span>
+                                <span className="font-medium">{stats.stats.trainings.attended} / {stats.stats.trainings.total}</span>
+                            </div>
+                        </div>
+
+                        {stats.recentAttendance.length > 0 && (
+                            <div className="space-y-3">
+                                <h4 className="text-sm font-medium text-muted-foreground">Últimas Asistencias</h4>
+                                <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                                    {stats.recentAttendance.map((record: any, i: number) => (
+                                        <div key={i} className="flex justify-between text-sm p-2 border-b border-border/50 last:border-0">
+                                            <span>{new Date(record.event_date).toLocaleDateString()}</span>
+                                            <span className={cn("px-2 py-0.5 rounded text-xs",
+                                                record.type === 'match' ? 'bg-blue-500/10 text-blue-600' : 'bg-green-500/10 text-green-600'
+                                            )}>
+                                                {record.type === 'match' ? 'Partido' : 'Entrenamiento'}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="py-8 text-center text-destructive">Error al cargar estadísticas</div>
+                )}
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// Edit Player Dialog
+function EditPlayerDialog({ player, open, onOpenChange }: { player: any, open: boolean, onOpenChange: (open: boolean) => void }) {
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+
+    useEffect(() => {
+        if (player) {
+            setName(player.name);
+            setEmail(player.email);
+        }
+    }, [player]);
+
+    const updateMutation = useMutation({
+        mutationFn: async (data: { name: string, email: string }) => {
+            const res = await fetch(`/api/players/${player.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(data)
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Error updating player');
+            }
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['players'] });
+            onOpenChange(false);
+        }
+    });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        updateMutation.mutate({ name, email });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Editar Jugador</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <Label>Nombre</Label>
+                        <Input value={name} onChange={e => setName(e.target.value)} required />
+                    </div>
+                    <div>
+                        <Label>Email</Label>
+                        <Input value={email} onChange={e => setEmail(e.target.value)} type="email" required />
+                    </div>
+                    <DialogFooter>
+                        <Button type="submit" disabled={updateMutation.isPending}>
+                            {updateMutation.isPending ? 'Guardando...' : 'Guardar'}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 // Settings Tab Component
 function SettingsTab() {
     const { user, token, logout } = useAuth();
@@ -487,14 +632,126 @@ function SettingsTab() {
     );
 }
 
+// Event Dialog
+function EventDialog({ date, event, open, onOpenChange }: { date: string | null, event: any, open: boolean, onOpenChange: (open: boolean) => void }) {
+    const { token, user } = useAuth();
+    const queryClient = useQueryClient();
+    const [type, setType] = useState('training');
+    const [time, setTime] = useState('18:00');
+
+    useEffect(() => {
+        if (event) {
+            setType(event.type);
+            setTime(event.start_time);
+        } else {
+            setType('training');
+            setTime('18:00');
+        }
+    }, [event, date]);
+
+    const mutation = useMutation({
+        mutationFn: async (data: any) => {
+            const url = event ? `/api/events/${event.id}` : '/api/events';
+            const method = event ? 'PUT' : 'POST';
+            const body = {
+                ...data,
+                event_date: date,
+                team_id: user?.team_id || 1
+            };
+
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error('Error saving event');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
+            queryClient.invalidateQueries({ queryKey: ['attendance'] });
+            onOpenChange(false);
+        }
+    });
+
+    const handleDelete = async () => {
+        if (!confirm('¿Eliminar este evento?')) return;
+        try {
+            await fetch(`/api/events/${event.id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
+            queryClient.invalidateQueries({ queryKey: ['attendance'] });
+            onOpenChange(false);
+        } catch (e) {
+            alert('Error deleting');
+        }
+    };
+
+    if (!date) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{event ? 'Editar Evento' : 'Crear Evento'}</DialogTitle>
+                    <DialogDescription>{new Date(date).toLocaleDateString()}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <Label>Tipo de Evento</Label>
+                        <div className="flex gap-4">
+                            <Button
+                                type="button"
+                                variant={type === 'match' ? 'default' : 'outline'}
+                                onClick={() => setType('match')}
+                                className={cn("flex-1", type === 'match' && "bg-blue-600 hover:bg-blue-700")}
+                            >
+                                ⚽ Partido
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={type === 'training' ? 'default' : 'outline'}
+                                onClick={() => setType('training')}
+                                className={cn("flex-1", type === 'training' && "bg-green-600 hover:bg-green-700")}
+                            >
+                                🏋️ Entrenamiento
+                            </Button>
+                        </div>
+                    </div>
+                    <div>
+                        <Label>Hora</Label>
+                        <Input type="time" value={time} onChange={e => setTime(e.target.value)} />
+                    </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-0 mt-4">
+                    {event && (
+                        <Button variant="destructive" type="button" onClick={handleDelete} className="mr-auto">
+                            <Trash2 className="w-4 h-4 mr-2" /> Eliminar
+                        </Button>
+                    )}
+                    <Button onClick={() => mutation.mutate({ type, start_time: time })}>
+                        Guardar
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 // Admin Dashboard
 function AdminDashboard() {
-    const { user, logout } = useAuth();
+    const { user, token, logout } = useAuth();
     const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState('scanner');
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
     const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth() + 1);
+    const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+    const [isEditOpen, setIsEditOpen] = useState(false);
+    const [isStatsOpen, setIsStatsOpen] = useState(false);
+    const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
 
     // Players query
     const { data: players = [] } = useQuery({
@@ -553,6 +810,32 @@ function AdminDashboard() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['players'] });
+        }
+    });
+
+    // Delete player mutation
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            if (!confirm('¿Estás seguro de eliminar este jugador? Esta acción no se puede deshacer.')) return;
+            const res = await fetch(`/api/players/${id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Error al eliminar');
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['players'] })
+    });
+
+    // Reset password mutation
+    const resetPasswordMutation = useMutation({
+        mutationFn: async (id: string) => {
+            if (!confirm('¿Resetear contraseña al email del usuario?')) return;
+            const res = await fetch(`/api/players/${id}/reset-password`, {
+                method: 'PUT',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Error al resetear');
+            alert('Contraseña reseteada correctamente');
         }
     });
 
@@ -689,16 +972,26 @@ function AdminDashboard() {
                                     >
                                         <Card>
                                             <CardHeader className="pb-3">
-                                                <CardTitle className="text-lg">
-                                                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', {
-                                                        weekday: 'long',
-                                                        day: 'numeric',
-                                                        month: 'long'
-                                                    })}
-                                                </CardTitle>
-                                                <CardDescription>
-                                                    {dateAttendance.event?.type === 'match' ? '⚽ Partido' : '🏋️ Entrenamiento'}
-                                                </CardDescription>
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <CardTitle className="text-lg">
+                                                            {new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', {
+                                                                weekday: 'long',
+                                                                day: 'numeric',
+                                                                month: 'long'
+                                                            })}
+                                                        </CardTitle>
+                                                        <CardDescription>
+                                                            {dateAttendance.event
+                                                                ? (dateAttendance.event.type === 'match' ? '⚽ Partido' : '🏋️ Entrenamiento')
+                                                                : 'Sin evento programado'}
+                                                        </CardDescription>
+                                                    </div>
+                                                    <Button variant="outline" size="sm" onClick={() => setIsEventDialogOpen(true)}>
+                                                        <CalendarIcon className="w-4 h-4 mr-2" />
+                                                        {dateAttendance.event ? 'Editar' : 'Crear'}
+                                                    </Button>
+                                                </div>
                                             </CardHeader>
                                             <CardContent>
                                                 <div className="space-y-2">
@@ -734,6 +1027,13 @@ function AdminDashboard() {
                                     </motion.div>
                                 )}
                             </AnimatePresence>
+
+                            <EventDialog
+                                date={selectedDate}
+                                event={dateAttendance?.event}
+                                open={isEventDialogOpen}
+                                onOpenChange={setIsEventDialogOpen}
+                            />
                         </motion.div>
                     )}
 
@@ -790,10 +1090,45 @@ function AdminDashboard() {
                                                 <p className="font-medium truncate">{player.name}</p>
                                                 <p className="text-sm text-muted-foreground truncate">{player.email}</p>
                                             </div>
+
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => { setSelectedPlayer(player); setIsStatsOpen(true); }}>
+                                                        <BarChart className="mr-2 h-4 w-4" /> Estadísticas
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => { setSelectedPlayer(player); setIsEditOpen(true); }}>
+                                                        <Edit className="mr-2 h-4 w-4" /> Editar
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => resetPasswordMutation.mutate(player.id)}>
+                                                        <KeyRound className="mr-2 h-4 w-4" /> Reset Password
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => deleteMutation.mutate(player.id)}>
+                                                        <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                         </div>
                                     </Card>
                                 ))}
                             </div>
+
+                            <PlayerStatsDialog
+                                player={selectedPlayer}
+                                open={isStatsOpen}
+                                onOpenChange={setIsStatsOpen}
+                            />
+
+                            <EditPlayerDialog
+                                player={selectedPlayer}
+                                open={isEditOpen}
+                                onOpenChange={setIsEditOpen}
+                            />
                         </motion.div>
                     )}
 
